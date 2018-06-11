@@ -194,8 +194,8 @@ function hex(a) {
 }
 
 async function watsonTranslate(language, text) {
- let watson_username = '513b1224-4f92-49ed-8fd4-85a537dffc97'
- let watson_password = 'HKn3hnOsZLIf'
+ let watson_username = 'REDACTED'
+ let watson_password = 'REDACTED'
  let watsonTranslateEndpoint = `https://gateway.watsonplatform.net/language-translator/api/v2/translate`
  let watsonRequestInit = {
    method: 'POST',
