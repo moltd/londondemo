@@ -7,18 +7,21 @@ addEventListener('fetch', event => {
 * @param {Request} request
 */
 async function fetchAndReply(request) {
-  const response = await fetch(request)
+ const response = await fetch(request)
 
- text = await response.text()
+ let text = await response.text()
 
  /* 1. Simple Rebrand */
- let textUpdate = await changeColor(text, brandChange.color)
- textUpdate = await changeLogo(textUpdate, brandChange.logo)
+ let textUpdate = changeColor(text, brandChange.color)
+ textUpdate = changeLogo(textUpdate, brandChange.logo)
 
  /* 2. A/B Testing Rebrand
- textUpdate = await doABTest(request, text)
+ let abResult = await doABTest(request, text)
+ textUpdate = abResult.text
+ let isNew = abResult.isNew
  if (isNew) {
-   // The experiment was newly-assigned, so add a Set-Cookie header
+   // The experiment was newly-assigned, so add a 
+   header
    // to the response.
    const newHeaders = new Headers(response.headers)
    newHeaders.append('Set-Cookie', `${name}=${group}`)
@@ -35,40 +38,39 @@ async function fetchAndReply(request) {
  let country = request.headers.get('Cf-IpCountry').toLocaleLowerCase()
  let language = COUNTRY_TO_LANG[country]
  let responseHeaders = new Headers(response.headers)
- responseHeaders.append('Language', language)
- responseHeaders.append('Country', country)
+ responseHeaders.set('Language', language)
+ responseHeaders.set('Country', country)
+ 
  if (!language || language == 'en') {
    return new Response(response.body, {status: response.status, headers: responseHeaders})
  }
-  // Try to translate the body of the response, otherwise fallback to origin response
+ // Try to translate the body of the response, otherwise fallback to origin response
  try {
-   let responseBody = await response.text()
-   let translatedBody = await watsonTranslate(language, responseBody)
+   let translatedBody = await watsonTranslate(language, textUpdate)
    let watsonjson = await translatedBody.json()
-   let newBody = watsonjson['translations'][0]['translation']
+   textUpdate = watsonjson['translations'][0]['translation']
  }
  catch (err) {
    console.log(err)
-   return response
  }
  */
- return new Response( textUpdate, {status : response.status, headers : response.headers})
+ return response
 }
 
 
 
-async function changeColor(text, brandColor) {
+function changeColor(text, brandColor) {
  console.log('%DEBUG%: Change the color')
  // Change to Orange
  text = text.replace('color:#333', brandColor)
  text = text.replace('color:#ddd', brandColor)
-return text
+ return text
 }
 
-async function changeLogo(text, brandLogo) {
-   console.log('%DEBUG%: Change the logo')
-   text = text.replace('/bitnami/images/corner-logo.png', brandLogo)
-   return text
+function changeLogo(text, brandLogo) {
+ console.log('%DEBUG%: Change the logo')
+ text = text.replace('/bitnami/images/corner-logo.png', brandLogo)
+ return text
 }
 
 
@@ -83,51 +85,30 @@ async function doABTest(request, text) {
 
  // Determine which group this request is in.
  const cookie = request.headers.get('Cookie')
+ randomCookie = group = '0' <= test && test <= '9' ? 'control' : 'test'
+ 
  if (cookie && cookie.includes(`${name}=control`)) {
    group = 'control'
  } else if (cookie && cookie.includes(`${name}=test`)) {
    group = 'test'
  } else {
-   if (cookie.includes(randomCookie)) {
-     // Key of random so we can vary test cookie: __cfduid=dea4cd636f222604be369d22f1c316c3c1528495346
-     // Depending on last digit 0-7 is control; 0-F is test.
-     let cookieLength = cookie.length
-     test = cookie.substring(cookieLength -1, cookieLength) // get last digit
-     group = test < 7 ? 'control' : 'test'
-     isNew = true
+  if (cookie.includes(randomCookie)) {
+    // Key of random so we can vary test cookie: __cfduid=dea4cd636f222604be369d22f1c316c3c1528495346
+    // Depending on last digit 0-7 is control; 0-F is test.
+    test = randomCookie.slice(-1)
+    group = '0' <= test && test <= '9' ? 'control' : 'test'
    }
  }
 
- /**** Code that goes the origin to pivot a/b test. We can alter the request
-  * to make this happen, but we can smarter and do this in the Worker **/
- /*
- // We'll prefix the request path with the experiment name. This way,
- // the origin server merely has to have two copies of the site under
- // top-level directories named "control" and "test".
- let url = new URL(request.url)
- // Note that `url.pathname` always begins with a `/`, so we don't
- // need to explicitly add one after `${group}`.
- url.pathname = `/${group}${url.pathname}`
-
- const modifiedRequest = new Request(url, {
-   method: request.method,
-   headers: request.headers
- })
-
- const response = await fetch(modifiedRequest)
- */
- /****/
-
  if (cookie && (group == 'control')) {
-   textUpdate = await changeColor(text, brandChange2.color)
-   textUpdate = await changeLogo(textUpdate,brandChange2.logo)
+   textUpdate = changeColor(text, brandChange2.color)
+   textUpdate = changeLogo(textUpdate,brandChange2.logo)
 
  } else if (cookie && (group == 'test')) {
-   textUpdate = await changeColor(text, brandChange3.color)
-   textUpdate = await changeLogo(textUpdate, brandChange3.logo)
-   isNew = true
+   textUpdate = changeColor(text, brandChange3.color)
+   textUpdate = changeLogo(textUpdate, brandChange3.logo)
  }
-  return textUpdate
+  return { text: textUpdate, isNew: isNew };
 }
 
 async function blockDevice(request, response) {
